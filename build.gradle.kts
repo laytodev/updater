@@ -1,20 +1,37 @@
 plugins {
-    kotlin("jvm") version "1.7.21"
+    kotlin("jvm") version "1.8.20"
 }
 
-group = "dev.updater"
-version = "1.0.0"
+allprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
 
-repositories {
-    mavenCentral()
-}
 
-dependencies {
-    implementation(kotlin("stdlib"))
-    implementation(kotlin("reflect"))
+    group = "dev.updater"
+    version = "1.0.0"
 
-    implementation("org.ow2.asm:asm:_")
-    implementation("org.ow2.asm:asm-commons:_")
-    implementation("org.ow2.asm:asm-tree:_")
-    implementation("org.ow2.asm:asm-util:_")
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    dependencies {
+        implementation(kotlin("stdlib"))
+        implementation(kotlin("reflect"))
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+
+        if(!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_11)) {
+            toolchain {
+                languageVersion.set(JavaLanguageVersion.of(11))
+            }
+        }
+    }
+
+    tasks.compileJava {
+        options.encoding = "UTF-8"
+        options.release.set(11)
+    }
 }

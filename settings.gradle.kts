@@ -4,3 +4,5 @@ plugins {
 
 rootProject.name = "updater"
 
+include(":deobfuscator")
+include(":matcher")
