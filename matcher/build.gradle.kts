@@ -1,10 +1,12 @@
 plugins {
-    id("org.openjfx.javafxplugin") version "0.0.13"
     application
+    java
+    id("org.openjfx.javafxplugin") version "0.0.13"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 application {
-    mainClass.set("dev.updater.matcher.Main")
+    mainClass.set("dev.updater.matcher.Matcher")
 }
 
 javafx {

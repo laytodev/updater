@@ -10,10 +10,8 @@ class RootMenu : Fragment() {
     override val root = menubar {
         menu("File") {
             item("New Project") {
-                action { newAction() }
+                action { newProjectAction() }
             }
-            item("Open Project")
-            item("Save Project")
             separator()
             item("Exit") {
                 action { exitAction() }
@@ -25,7 +23,8 @@ class RootMenu : Fragment() {
         }
 
         menu("Matching") {
-            item("Auto-Match Everything")
+            item("Auto-Match All")
+            separator()
             item("Auto-Match Classes")
             item("Auto-Match Methods")
             item("Auto-Match Fields")
@@ -34,8 +33,9 @@ class RootMenu : Fragment() {
         }
     }
 
-    private fun newAction() {
-
+    private fun newProjectAction() {
+        Logger.info("Opening new project dialog.")
+        NewProjectDialog().openModal(resizable = false)
     }
 
     private fun exitAction() {

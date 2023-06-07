@@ -7,7 +7,7 @@ import tornadofx.borderpane
 class RootView : View("Updater") {
 
     override val root = borderpane {
-        setPrefSize(1000.0, 850.0)
+        setPrefSize(1280.0, 900.0)
         top = find(RootMenu::class).root
     }
 }
