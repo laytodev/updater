@@ -1,18 +1,22 @@
 package dev.updater.matcher
 
-import dev.updater.matcher.gui.MatcherApp
-import org.tinylog.kotlin.Logger
-import tornadofx.launch
+import dev.updater.matcher.asm.ClassEnvironment
+import java.io.File
 
 object Matcher {
 
+    lateinit var env: ClassEnvironment private set
+
     @JvmStatic
     fun main(args: Array<String>) {
-        launch<MatcherApp>()
+        if(args.size < 2) error("Usage: <named jar> <deob jar>")
+        val jarA = File(args[0])
+        val jarB = File(args[1])
+        init(jarA, jarB)
     }
 
-    fun init() {
-        Logger.info("Initializing project.")
+    fun init(jarA: File, jarB: File) {
+        env = ClassEnvironment(jarA, jarB)
+        env.init()
     }
-
 }

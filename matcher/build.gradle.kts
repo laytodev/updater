@@ -9,6 +9,10 @@ application {
     mainClass.set("dev.updater.matcher.Matcher")
 }
 
+tasks.named<JavaExec>("run") {
+    workingDir = rootProject.projectDir
+}
+
 javafx {
     version = "11.0.2"
     modules = listOf("javafx.base", "javafx.graphics", "javafx.controls", "javafx.web", "javafx.media")
