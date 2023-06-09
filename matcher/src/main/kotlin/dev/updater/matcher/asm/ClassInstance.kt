@@ -36,6 +36,9 @@ class ClassInstance private constructor(
     val methodTypeRefs = hashSetOf<MethodInstance>()
     val fieldTypeRefs = hashSetOf<FieldInstance>()
 
+    var outerClass: ClassInstance? = null
+    val innerClasses = hashSetOf<ClassInstance>()
+
     private val methodMap = hashMapOf<String, MethodInstance>()
     val methods get() = methodMap.values.toList()
 
@@ -90,6 +93,8 @@ class ClassInstance private constructor(
 
         return null
     }
+
+
 
     fun resolveField(name: String, desc: String): FieldInstance? {
         var ret = getField(name, desc)

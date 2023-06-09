@@ -4,7 +4,7 @@ import org.objectweb.asm.Opcodes.ACC_STATIC
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree.MethodNode
 
-class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode: MethodNode)
+class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode: MethodNode?)
     : MemberInstance<MethodInstance>(cls, name, desc, name != "<clinit>" && name != "<init>")
 {
     val args: List<ClassInstance>
@@ -12,6 +12,8 @@ class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode
 
     val refsIn = hashSetOf<MethodInstance>()
     val refsOut = hashSetOf<MethodInstance>()
+    val fieldReadRefs = hashSetOf<FieldInstance>()
+    val fieldWriteRefs = hashSetOf<FieldInstance>()
     val classRefs = hashSetOf<ClassInstance>()
 
     init {
@@ -35,7 +37,7 @@ class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode
 
     val id get() = "$name$desc"
 
-    override fun isStatic() = (asmNode.access and ACC_STATIC) != 0
+    override fun isStatic() = asmNode != null && (asmNode.access and ACC_STATIC) != 0
 
     override fun toString(): String {
         return "$cls.$id"

@@ -1,13 +1,20 @@
 package dev.updater.matcher.asm
 
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes.GETFIELD
+import org.objectweb.asm.Opcodes.GETSTATIC
+import org.objectweb.asm.tree.AbstractInsnNode.*
 import org.objectweb.asm.tree.ClassNode
+import org.objectweb.asm.tree.FieldInsnNode
+import org.objectweb.asm.tree.MethodInsnNode
+import org.objectweb.asm.tree.TypeInsnNode
 import java.io.File
 import java.net.URI
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.ArrayDeque
 import java.util.jar.JarFile
 
 class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
@@ -36,6 +43,10 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
 
         initialClasses.forEach { cls ->
             processClassA(cls)
+        }
+
+        initialClasses.forEach { cls ->
+            processClassB(cls)
         }
     }
 
@@ -139,6 +150,7 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
     private fun processClassA(cls: ClassInstance) {
         val cn = cls.asmNode!!
 
+        // Add methods and fields to class
         cn.methods.forEach { mn ->
             val method = MethodInstance(cls, mn.name, mn.desc, mn)
             cls.addMethod(method)
@@ -149,12 +161,150 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
             cls.addField(field)
         }
 
+        // Add / Set outer and inner classes
+        if(cn.outerClass != null) {
+            addOuterClass(cls, cn.outerClass)
+        } else {
+            cn.innerClasses.forEach { inCls ->
+                if(inCls.name == cn.name) {
+                    addOuterClass(cls, inCls.outerName)
+                    return
+                }
+            }
+            var pos: Int
+            if(cn.name.lastIndexOf('$').also { pos = it } != -1 && pos < cn.name.length - 1) {
+                addOuterClass(cls, cn.name.substring(0, pos))
+            }
+        }
+
         if(cn.superName != null) {
             addSuperClass(cls, cn.superName)
         }
         cn.interfaces.map { getCreateClass(getClassId(it)) }.forEach { itf ->
             cls.interfaces.add(itf)
             itf.implementers.add(cls)
+        }
+    }
+
+    private fun processClassB(cls: ClassInstance) {
+        val queue = ArrayDeque<ClassInstance>()
+        val visited = hashSetOf<ClassInstance>()
+
+        cls.methods.forEach { method ->
+            processMethod(method, queue, visited)
+            queue.clear()
+            visited.clear()
+        }
+
+        cls.fields.forEach { field ->
+            processField(field, queue, visited)
+            queue.clear()
+            visited.clear()
+        }
+    }
+
+    private fun addOuterClass(cls: ClassInstance, name: String) {
+        var outerClass = getClass(name)
+        if(outerClass == null) {
+            outerClass = getCreateClass(getClassId(name))
+        }
+
+        cls.outerClass = outerClass
+        outerClass.innerClasses.add(cls)
+    }
+
+    private fun processMethod(method: MethodInstance, queue: ArrayDeque<ClassInstance>, visited: HashSet<ClassInstance>) {
+        if(method.cls.superClass != null) queue.add(method.cls.superClass!!)
+        queue.addAll(method.cls.interfaces)
+
+        var cls: ClassInstance?
+        while(queue.poll().also { cls = it } != null) {
+            if(!visited.add(cls!!)) continue
+
+            val m = cls!!.getMethod(method.name, method.desc)
+            if(m != null) {
+                method.parent = m
+                m.children.add(method)
+            } else {
+                if(cls!!.superClass != null) queue.add(cls!!.superClass!!)
+                queue.addAll(cls!!.interfaces)
+            }
+        }
+
+        if(method.asmNode == null) {
+            return
+        }
+
+        val insns = method.asmNode.instructions.iterator()
+        while(insns.hasNext()) {
+            val insn = insns.next()
+
+            when(insn.type) {
+                METHOD_INSN -> {
+                    insn as MethodInsnNode
+                    val owner = getCreateClass(getClassId(insn.owner))
+                    var dst = owner.resolveMethod(insn.name, insn.desc)
+
+                    if(dst == null) {
+                        dst = MethodInstance(owner, insn.name, insn.desc, null)
+                        owner.addMethod(dst)
+                    }
+
+                    dst.refsIn.add(method)
+                    method.refsOut.add(dst)
+                    dst.cls.methodTypeRefs.add(method)
+                    method.classRefs.add(dst.cls)
+                }
+
+                FIELD_INSN -> {
+                    insn as FieldInsnNode
+                    val owner = getCreateClass(getClassId(insn.owner))
+                    var dst = owner.resolveField(insn.name, insn.desc)
+
+                    if(dst == null) {
+                        dst = FieldInstance(owner, insn.name, insn.desc, null)
+                        owner.addField(dst)
+                    }
+
+                    if(insn.opcode == GETSTATIC || insn.opcode == GETFIELD) {
+                        dst.readRefs.add(method)
+                        method.fieldReadRefs.add(dst)
+                    } else {
+                        dst.writeRefs.add(method)
+                        method.fieldWriteRefs.add(dst)
+                    }
+
+                    dst.cls.methodTypeRefs.add(method)
+                    method.classRefs.add(dst.cls)
+                }
+
+                TYPE_INSN -> {
+                    insn as TypeInsnNode
+                    val dst = getCreateClass(getClassId(insn.desc))
+                    dst.methodTypeRefs.add(method)
+                    method.classRefs.add(dst)
+                }
+            }
+        }
+    }
+
+    private fun processField(field: FieldInstance, queue: ArrayDeque<ClassInstance>, visited: HashSet<ClassInstance>) {
+        if(field.cls.superClass != null) queue.add(field.cls.superClass!!)
+        queue.addAll(field.cls.interfaces)
+
+        var cls: ClassInstance?
+        while(queue.poll().also { cls = it } != null) {
+            if(!visited.add(cls!!)) continue
+
+            val f = cls!!.getField(field.name, field.desc)
+
+            if(f != null) {
+                field.parent = f
+                f.children.add(field)
+            } else {
+                if(cls!!.superClass != null) queue.add(cls!!.superClass!!)
+                queue.addAll(cls!!.interfaces)
+            }
         }
     }
 
