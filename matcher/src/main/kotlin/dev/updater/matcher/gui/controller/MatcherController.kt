@@ -33,7 +33,6 @@ class MatcherController : Controller() {
             srcClasses.clear()
             srcMembers.clear()
             srcStaticMembers.clear()
-
             srcClasses.set(Matcher.env.groupA.classes.sortedBy { it.name }.toObservable())
         }
     }

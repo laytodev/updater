@@ -1,5 +1,6 @@
 package dev.updater.matcher.gui
 
+import dev.updater.matcher.Matcher
 import tornadofx.*
 import kotlin.system.exitProcess
 
@@ -18,7 +19,9 @@ class MenuBar : Fragment() {
         }
 
         menu("Match") {
-            item("Auto-Match All")
+            item("Auto-Match All") {
+                action { Matcher.autoMatchAll() }
+            }
             separator()
             item("Auto-Match Classes")
             item("Auto-Match Methods")

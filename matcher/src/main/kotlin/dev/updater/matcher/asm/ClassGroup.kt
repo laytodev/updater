@@ -29,7 +29,7 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
         JarFile(file).use { jar ->
             jar.entries().asSequence().forEach { entry ->
                 if(entry.name.endsWith(".class")) {
-                    val cls = readClass(jar.getInputStream(entry).readAllBytes()) { true }
+                    val cls = readClass(jar.getInputStream(entry).readAllBytes()) { AsmUtil.isNameObfuscated(it.name) }
                     classMap.putIfAbsent(cls.id, cls)
                 }
             }

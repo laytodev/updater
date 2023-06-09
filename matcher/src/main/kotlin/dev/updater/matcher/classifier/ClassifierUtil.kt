@@ -10,7 +10,6 @@ import org.objectweb.asm.tree.IntInsnNode
 import org.objectweb.asm.tree.JumpInsnNode
 import org.objectweb.asm.tree.MethodInsnNode
 import org.objectweb.asm.tree.TypeInsnNode
-import org.objectweb.asm.tree.VarInsnNode
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -48,10 +47,13 @@ object ClassifierUtil {
         return true
     }
 
-    fun isPotentiallyEqual(a: MemberInstance<*>, b: MemberInstance<*>) {
-        when(a) {
-            is MethodInstance -> isPotentiallyEqual(a, b as MethodInstance)
-            is FieldInstance -> isPotentiallyEqual(a, b as FieldInstance)
+    fun <T : Matchable<T>> isPotentiallyEqual(a: T, b: T): Boolean {
+        if(a::class != b::class) return false
+        return when(a::class) {
+            ClassInstance::class -> isPotentiallyEqual(a as ClassInstance, b as ClassInstance)
+            MethodInstance::class -> isPotentiallyEqual(a as MethodInstance, b as MethodInstance)
+            FieldInstance::class -> isPotentiallyEqual(a as FieldInstance, b as FieldInstance)
+            else -> throw IllegalArgumentException("Unknown matchable type: ${a::class.simpleName}.")
         }
     }
 
@@ -301,6 +303,8 @@ object ClassifierUtil {
         if(clsA == null || clsB == null) return false
 
         return compareMethods(clsA, nameA, descA, clsB, nameB, descB)
+
+        val v = ClassLoader.getSystemClassLoader()
     }
 
     private fun compareMethods(clsA: ClassInstance, nameA: String, descA: String, clsB: ClassInstance, nameB: String, descB: String): Boolean {
@@ -311,6 +315,27 @@ object ClassifierUtil {
         if(methodA == null || methodB == null) return false
 
         return isPotentiallyEqual(methodA, methodB)
+    }
+
+    fun <T> rank(src: T, dsts: Collection<T>, classifiers: HashMap<Classifier<T>, Double>, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
+        val ret = mutableListOf<RankResult<T>>()
+
+        for(dst in dsts) {
+            if(!checkEquality(src, dst)) continue
+
+            var score = 0.0
+            val results = mutableListOf<ClassifierResult<T>>()
+
+            classifiers.entries.forEach { entry ->
+                val cscore = entry.key.getScore(src, dst)
+                score += cscore * entry.value
+                results.add(ClassifierResult(entry.key, cscore))
+            }
+            ret.add(RankResult(dst, score, results))
+        }
+
+        ret.sortByDescending(RankResult<T>::score)
+        return ret
     }
 
     const val COMPARED_SIMILAR = 0
