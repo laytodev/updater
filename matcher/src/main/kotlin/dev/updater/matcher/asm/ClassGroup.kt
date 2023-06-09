@@ -1,5 +1,6 @@
 package dev.updater.matcher.asm
 
+import dev.updater.matcher.classifier.ClassifierUtil
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Opcodes.GETFIELD
 import org.objectweb.asm.Opcodes.GETSTATIC
@@ -150,15 +151,21 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
     private fun processClassA(cls: ClassInstance) {
         val cn = cls.asmNode!!
 
+        val strings = cls.strings
+
         // Add methods and fields to class
         cn.methods.forEach { mn ->
             val method = MethodInstance(cls, mn.name, mn.desc, mn)
             cls.addMethod(method)
+            ClassifierUtil.extractStrings(mn.instructions, strings)
         }
 
         cn.fields.forEach { fn ->
             val field = FieldInstance(cls, fn.name, fn.desc, fn)
             cls.addField(field)
+            if(fn.value is String) {
+                strings.add(fn.value as String)
+            }
         }
 
         // Add / Set outer and inner classes

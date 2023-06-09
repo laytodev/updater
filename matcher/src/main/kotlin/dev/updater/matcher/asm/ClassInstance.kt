@@ -39,11 +39,19 @@ class ClassInstance private constructor(
     var outerClass: ClassInstance? = null
     val innerClasses = hashSetOf<ClassInstance>()
 
+    val strings = hashSetOf<String>()
+
     private val methodMap = hashMapOf<String, MethodInstance>()
     val methods get() = methodMap.values.toList()
 
     private val fieldMap = hashMapOf<String, FieldInstance>()
     val fields get() = fieldMap.values.toList()
+
+    val memberMethods get() = methods.filter { !it.isStatic() }
+    val staticMethods get() = methods.filter { it.isStatic() }
+
+    val memberFields get() = fields.filter { !it.isStatic() }
+    val staticFields get() = fields.filter { it.isStatic() }
 
     fun isPrimitive() = id[0] != 'L' && id[0] != '['
     fun isArray() = elementClass != null

@@ -8,7 +8,9 @@ import org.objectweb.asm.tree.FieldInsnNode
 import org.objectweb.asm.tree.InsnList
 import org.objectweb.asm.tree.IntInsnNode
 import org.objectweb.asm.tree.JumpInsnNode
+import org.objectweb.asm.tree.LdcInsnNode
 import org.objectweb.asm.tree.MethodInsnNode
+import org.objectweb.asm.tree.MethodNode
 import org.objectweb.asm.tree.TypeInsnNode
 import kotlin.math.abs
 import kotlin.math.max
@@ -336,6 +338,45 @@ object ClassifierUtil {
 
         ret.sortByDescending(RankResult<T>::score)
         return ret
+    }
+
+    fun extractStrings(insns: InsnList, out: HashSet<String>) {
+        extractStrings(insns.iterator(), out)
+    }
+
+    fun extractStrings(insns: List<AbstractInsnNode>, out: HashSet<String>) {
+        extractStrings(insns.iterator(), out)
+    }
+
+    private fun extractStrings(it: Iterator<AbstractInsnNode>, out: HashSet<String>) {
+        while(it.hasNext()) {
+            val insn = it.next()
+            if(insn is LdcInsnNode) {
+                if(insn.cst is String) {
+                    out.add(insn.cst as String)
+                }
+            }
+        }
+    }
+
+    fun extractNumbers(node: MethodNode, ints: HashSet<Int>, longs: HashSet<Long>, floats: HashSet<Float>, doubles: HashSet<Double>) {
+        val it = node.instructions.iterator()
+        while(it.hasNext()) {
+            val insn = it.next()
+            if(insn is LdcInsnNode) {
+                handleNumberValue(insn.cst, ints, longs, floats, doubles)
+            } else if(insn is IntInsnNode) {
+                ints.add(insn.operand)
+            }
+        }
+    }
+
+    fun handleNumberValue(number: Any?, ints: HashSet<Int>, longs: HashSet<Long>, floats: HashSet<Float>, doubles: HashSet<Double>) {
+        if(number == null) return
+        if(number is Int) ints.add(number)
+        else if(number is Long) longs.add(number)
+        else if(number is Float) floats.add(number)
+        else if(number is Double) doubles.add(number)
     }
 
     const val COMPARED_SIMILAR = 0

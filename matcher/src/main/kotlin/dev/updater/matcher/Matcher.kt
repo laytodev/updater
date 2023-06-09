@@ -7,17 +7,18 @@ import dev.updater.matcher.asm.MethodInstance
 import dev.updater.matcher.classifier.ClassClassifier
 import dev.updater.matcher.classifier.RankResult
 import dev.updater.matcher.gui.MatcherApp
-import dev.updater.matcher.gui.ProgressUtil
 import org.tinylog.kotlin.Logger
 import tornadofx.launch
 import java.io.File
-import java.util.Collections
-import java.util.HashMap
-import java.util.IdentityHashMap
+import java.util.*
+import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.stream.Collectors
 import kotlin.math.max
+import kotlin.streams.toList
 
 object Matcher {
 
@@ -43,7 +44,6 @@ object Matcher {
         env.init()
 
         matchUnobfuscated()
-
         ClassClassifier.init()
     }
 
@@ -117,17 +117,16 @@ object Matcher {
     }
 
     fun autoMatchAll() {
-        Executors.newWorkStealingPool(Runtime.getRuntime().availableProcessors()).execute {
-            if(autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }) {
-                autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }
-            }
-
-            var matchedAny: Boolean
-
-            do {
-                matchedAny = autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }
-            } while(matchedAny)
+        Logger.info("Matching all entries...")
+        if(autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }) {
+            autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }
         }
+
+        var matchedAny: Boolean
+
+        do {
+            matchedAny = autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }
+        } while(matchedAny)
     }
 
     fun autoMatchClasses(normThreshold: Double, relThreshold: Double, progressCallback: (Double) -> Unit): Boolean {
@@ -163,16 +162,17 @@ object Matcher {
 
         val itemsDone = AtomicInteger()
         val updateRate = max(1, workSet.size / 200)
-
-        workSet.parallelStream().forEach { workItem ->
-            worker(workItem)
-
-            val cItemsDone = itemsDone.incrementAndGet()
-
-            if((cItemsDone % updateRate) == 0) {
-                progressCallback(cItemsDone.toDouble() / workSet.size)
-            }
-        }
+        val futures = threadPool.invokeAll(workSet.stream().map { workItem: T ->
+                Callable<Void> {
+                    worker(workItem)
+                    val cItemsDone = itemsDone.incrementAndGet()
+                    if (cItemsDone % updateRate == 0) {
+                        progressCallback(cItemsDone.toDouble() / workSet.size)
+                    }
+                    null
+                }
+            }.toList())
+        futures.forEach { it.get() }
     }
 
     private fun checkRank(ranking: List<RankResult<*>>, absThreshold: Double, relThreshold: Double): Boolean {
@@ -203,8 +203,10 @@ object Matcher {
 
     const val absClassAutoMatchThreshold = 0.8
     const val relClassAutoMatchThreshold = 0.08
-    const val absMethodAutoMatchThreshold = 0.8
+    const val absMethodAutoMatchThreshold = 0.0
     const val relMethodAutoMatchThreshold = 0.08
     const val absFieldAutoMatchThreshold = 0.8
     const val relFieldAutoMatchThreshold = 0.08
+
+    val threadPool = Executors.newWorkStealingPool()
 }

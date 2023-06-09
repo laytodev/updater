@@ -6,6 +6,7 @@ import dev.updater.matcher.gui.controller.MatcherController
 import javafx.geometry.Orientation
 import javafx.scene.control.ListCell
 import javafx.scene.control.SelectionMode
+import javafx.scene.paint.Color
 import tornadofx.*
 
 class MatchSrcView : View() {
@@ -17,7 +18,7 @@ class MatchSrcView : View() {
         usePrefHeight = true
         cellFormat {
             text = it.toString()
-            applyMatchColors(it)
+            textFill = if(it.hasMatch()) Color.DARKGREEN else Color.DARKGRAY
         }
         selectionModel.selectionMode = SelectionMode.SINGLE
         bindSelected(controller.srcSelectedClass)
@@ -28,7 +29,7 @@ class MatchSrcView : View() {
         usePrefHeight = true
         cellFormat {
             text = it.toString()
-            applyMatchColors(it)
+            textFill = if(it.hasMatch()) Color.DARKGREEN else Color.DARKGRAY
         }
         selectionModel.selectionMode = SelectionMode.SINGLE
         bindSelected(controller.srcSelectedMember)
@@ -38,14 +39,14 @@ class MatchSrcView : View() {
         useMaxHeight = true
         cellFormat {
             text = it.toString()
-            applyMatchColors(it)
+            textFill = if(it.hasMatch()) Color.DARKGREEN else Color.DARKGRAY
         }
         selectionModel.selectionMode = SelectionMode.SINGLE
         bindSelected(controller.srcSelectedStaticMember)
     }
 
     override val root = splitpane(Orientation.VERTICAL) {
-        prefWidth = 250.0
+        prefWidth = 200.0
         useMaxHeight = true
         items.addAll(
             classList,
