@@ -312,7 +312,7 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
         private fun ClassGroup.readClass(bytes: ByteArray, nameObfuscatedCheck: (ClassNode) -> Boolean): ClassInstance {
             val node = ClassNode()
             val reader = ClassReader(bytes)
-            reader.accept(node, ClassReader.EXPAND_FRAMES)
+            reader.accept(node, ClassReader.SKIP_FRAMES)
             return ClassInstance(this, getClassId(node.name), node, nameObfuscatedCheck(node))
         }
     }
