@@ -47,24 +47,6 @@ object ClassifierUtil {
         }
     }
 
-    fun isPotentiallyEqual(a: ClassInstance?, b: ClassInstance?): Boolean {
-        if(a == null && b == null) return true
-        if(a == null || b == null) return false
-        return isPotentiallyEqual(a, b)
-    }
-
-    fun isPotentiallyEqual(a: MethodInstance?, b: MethodInstance?): Boolean {
-        if(a == null && b == null) return true
-        if(a == null || b == null) return false
-        return isPotentiallyEqual(a, b)
-    }
-
-    fun isPotentiallyEqual(a: FieldInstance?, b: FieldInstance?): Boolean {
-        if(a == null && b == null) return true
-        if(a == null || b == null) return false
-        return isPotentiallyEqual(a, b)
-    }
-
     fun compareCounts(countA: Int, countB: Int): Double {
         val delta = abs(countA - countB)
         return if (delta == 0) 1.0 else 1.0 - delta.toDouble() / max(countA, countB)
