@@ -14,10 +14,6 @@ abstract class AbstractClassifier<T : Matchable<T>> {
         maxScore += weight.toDouble()
     }
 
-    fun rank(src: T, dsts: Collection<T>): List<RankResult<T>> {
-        return ClassifierUtil.rank(src, dsts, classifiers) { a, b -> ClassifierUtil.isPotentiallyEqual(a, b) }
-    }
-
     @DslMarker
     annotation class ClassifierDslMarker
 

@@ -7,7 +7,7 @@ import org.objectweb.asm.tree.MethodNode
 class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode: MethodNode?)
     : MemberInstance<MethodInstance>(cls, name, desc, name != "<clinit>" && name != "<init>")
 {
-    val args: List<ClassInstance>
+    val args: MutableList<ClassInstance>
     val retType: ClassInstance
 
     val refsIn = hashSetOf<MethodInstance>()

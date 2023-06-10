@@ -26,6 +26,9 @@ class ClassGroup(val env: ClassEnvironment, val isShared: Boolean = false) {
     private val arrayClassMap = hashMapOf<String, ClassInstance>()
     val arrayClasses get() = arrayClassMap.values.toList()
 
+    val staticMethods get() = classes.flatMap { it.staticMethods }
+    val staticFields get() = classes.flatMap { it.staticFields }
+
     fun init(file: File) {
         JarFile(file).use { jar ->
             jar.entries().asSequence().forEach { entry ->

@@ -33,6 +33,10 @@ object ClassClassifier : AbstractClassifier<ClassInstance>() {
         addClassifier(fieldWriteRefs, weight = 5)
     }
 
+    fun rank(src: ClassInstance, dsts: List<ClassInstance>): List<RankResult<ClassInstance>> {
+        return ClassifierUtil.rank(src, dsts, classifiers) { a, b -> ClassifierUtil.isPotentiallyEqual(a, b) }
+    }
+
     private val classTypeCheck = classifier("class type check") { a, b ->
         val mask = (ACC_ENUM or ACC_INTERFACE or ACC_ANNOTATION) or ACC_ABSTRACT
         val resultA = a.asmNode!!.access and mask

@@ -319,7 +319,7 @@ object ClassifierUtil {
         return isPotentiallyEqual(methodA, methodB)
     }
 
-    fun <T> rank(src: T, dsts: Collection<T>, classifiers: HashMap<Classifier<T>, Double>, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
+    fun <T> rank(src: T, dsts: List<T>, classifiers: Map<Classifier<T>, Double>, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
         val ret = mutableListOf<RankResult<T>>()
 
         for(dst in dsts) {
