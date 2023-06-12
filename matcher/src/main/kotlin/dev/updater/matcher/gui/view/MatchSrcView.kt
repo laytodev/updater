@@ -3,6 +3,7 @@ package dev.updater.matcher.gui.view
 import dev.updater.matcher.asm.ClassInstance
 import dev.updater.matcher.asm.MemberInstance
 import dev.updater.matcher.gui.controller.MatcherController
+import dev.updater.matcher.gui.event.SelectedSrcMatchableEvent
 import javafx.geometry.Orientation
 import javafx.scene.control.ListCell
 import javafx.scene.control.SelectionMode
@@ -53,34 +54,5 @@ class MatchSrcView : View() {
             memberList,
             staticMemberList
         )
-    }
-    
-    private fun ListCell<*>.applyMatchColors(cls: ClassInstance) {
-        var matchLevel = 1
-        if(cls.hasMatch()) {
-            matchLevel++
-        }
-        if(cls.methods.any { cls.hasMatch() } || cls.fields.any { cls.hasMatch() }) {
-            matchLevel++
-        }
-        when(matchLevel) {
-            0 -> styleClass.add("no-match-cell")
-            1 -> styleClass.add("low-match-similarity-cell")
-            2 -> styleClass.add("moderate-match-similarity-cell")
-            3 -> styleClass.add("high-match-similarity-cell")
-        }
-    }
-
-    private fun ListCell<*>.applyMatchColors(member: MemberInstance<*>) {
-        var matchLevel = 1
-        if(member.hasMatch()) {
-            matchLevel = 3
-        }
-        when(matchLevel) {
-            0 -> styleClass.add("no-match-cell")
-            1 -> styleClass.add("low-match-similarity-cell")
-            2 -> styleClass.add("moderate-match-similarity-cell")
-            3 -> styleClass.add("high-match-similarity-cell")
-        }
     }
 }

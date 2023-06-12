@@ -11,6 +11,7 @@ abstract class AbstractClassifier<T : Matchable<T>> {
 
     fun addClassifier(classifier: Classifier<T>, weight: Int) {
         classifiers[classifier] = weight.toDouble()
+        classifier.weight = weight.toDouble()
         maxScore += weight.toDouble()
     }
 

@@ -10,6 +10,7 @@ class MainView : View("Matcher") {
         setPrefSize(1500.0, 1000.0)
         top = find(MenuBar::class).root
         left = find(MatchSrcView::class).root
+        right = find(MatchDstView::class).root
     }
 
     override fun onDock() {

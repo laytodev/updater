@@ -5,7 +5,7 @@ import org.objectweb.asm.Type
 import org.objectweb.asm.tree.MethodNode
 
 class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode: MethodNode?)
-    : MemberInstance<MethodInstance>(cls, name, desc, name != "<clinit>" && name != "<init>")
+    : MemberInstance<MethodInstance>(cls, name, desc, AsmUtil.isNameObfuscated(name))
 {
     val args: MutableList<ClassInstance>
     val retType: ClassInstance
@@ -35,7 +35,7 @@ class MethodInstance(cls: ClassInstance, name: String, desc: String, val asmNode
         retType.methodTypeRefs.add(this)
     }
 
-    val id get() = "$name$desc"
+    override val id get() = "$name$desc"
 
     override fun isStatic() = asmNode != null && (asmNode.access and ACC_STATIC) != 0
 

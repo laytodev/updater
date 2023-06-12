@@ -1,15 +1,16 @@
 package dev.updater.matcher.asm
 
+import dev.updater.matcher.classifier.RankResult
 import org.objectweb.asm.Opcodes.ACC_INTERFACE
 import org.objectweb.asm.tree.ClassNode
 import java.util.ArrayDeque
 
 class ClassInstance private constructor(
-    val group: ClassGroup,
-    val id: String,
+    override val group: ClassGroup,
+    override val id: String,
     val asmNode: ClassNode?,
     val elementClass: ClassInstance?,
-    val isNameObfuscated: Boolean
+    override val isNameObfuscated: Boolean
 ) : Matchable<ClassInstance> {
 
     override var isMatchable = true
@@ -17,17 +18,20 @@ class ClassInstance private constructor(
 
     constructor(group: ClassGroup, id: String, asmNode: ClassNode, isNameObfuscated: Boolean) : this(group, id, asmNode, null, isNameObfuscated)
 
-    constructor(group: ClassGroup, id: String) : this(group, id, null, null, false) {
-        match = this
-    }
+    constructor(group: ClassGroup, id: String) : this(group, id, null, null, false)
 
     constructor(group: ClassGroup, id: String, elementClass: ClassInstance) : this(group, id, null, elementClass, false) {
-        if(elementClass.isShared()) {
+        elementClass.arrays.add(this)
+    }
+
+    init {
+        if(group.isShared) {
             match = this
         }
     }
 
-    val name: String get() = if(id.startsWith("L")) id.substring(1, id.length - 1) else id
+    override val name: String get() = if(id.startsWith("L")) id.substring(1, id.length - 1) else id
+    override val rankResults = mutableListOf<RankResult<ClassInstance>>()
 
     var superClass: ClassInstance? = null
     val children = hashSetOf<ClassInstance>()
@@ -38,6 +42,7 @@ class ClassInstance private constructor(
 
     var outerClass: ClassInstance? = null
     val innerClasses = hashSetOf<ClassInstance>()
+    val arrays = hashSetOf<ClassInstance>()
 
     val strings = hashSetOf<String>()
 
@@ -52,6 +57,14 @@ class ClassInstance private constructor(
 
     val memberFields get() = fields.filter { !it.isStatic() }
     val staticFields get() = fields.filter { it.isStatic() }
+
+    val dims: Int get() {
+        if(!isArray()) return 0
+        for(i in 0 until id.length) {
+            if(id[i] != '[') return i
+        }
+        throw IllegalStateException("Invalid array id: $id")
+    }
 
     fun isPrimitive() = id[0] != 'L' && id[0] != '['
     fun isArray() = elementClass != null
@@ -101,8 +114,6 @@ class ClassInstance private constructor(
 
         return null
     }
-
-
 
     fun resolveField(name: String, desc: String): FieldInstance? {
         var ret = getField(name, desc)

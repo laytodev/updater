@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
+import kotlin.math.sqrt
 import kotlin.streams.toList
 
 object Matcher {
@@ -38,7 +39,7 @@ object Matcher {
         env = ClassEnvironment(jarA, jarB)
         env.init()
 
-        upddateUnmatchables()
+        //upddateUnmatchables()
         matchUnobfuscated()
 
         ClassClassifier.init()
@@ -51,10 +52,21 @@ object Matcher {
     }
 
     private fun upddateUnmatchables() {
+        env.groupA.classes.filter { it.name.startsWith("org/json") || it.name.startsWith("org/bouncycastle") }.forEach { cls ->
+            cls.isMatchable = false
+            cls.methods.forEach { it.isMatchable = false }
+            cls.fields.forEach { it.isMatchable = false }
+        }
+
+        env.groupB.classes.filter { it.name.startsWith("org/json") || it.name.startsWith("org/bouncycastle") }.forEach { cls ->
+            cls.isMatchable = false
+            cls.methods.forEach { it.isMatchable = false }
+            cls.fields.forEach { it.isMatchable = false }
+        }
     }
 
     private fun matchUnobfuscated() {
-        env.groupA.classes.forEach { cls ->
+        env.groupA.classes.filter { it.isMatchable }.forEach { cls ->
             if(cls.isNameObfuscated) return@forEach
             val match = env.groupB.getClass(cls.name)
             if(match != null && !match.isNameObfuscated) {
@@ -64,7 +76,6 @@ object Matcher {
     }
 
     fun match(a: ClassInstance, b: ClassInstance) {
-        if(!a.isMatchable || !b.isMatchable) return
         if(a.match == b) return
         if(a.hasMatch()) {
             a.match!!.match = null
@@ -76,11 +87,45 @@ object Matcher {
         }
         a.match = b
         b.match = a
+
+        if(a.isArray()) {
+            val elemA = a.elementClass!!
+            if(!elemA.hasMatch()) match(elemA, b.elementClass!!)
+        } else {
+            a.arrays.forEach { arrayA ->
+                val dims = arrayA.dims
+                for(arrayB in b.arrays) {
+                    if(arrayB.hasMatch() || arrayB.dims != dims) continue
+                    match(arrayA, arrayB)
+                    break
+                }
+            }
+        }
+
+        a.memberMethods.forEach { src ->
+            if(!src.isNameObfuscated) {
+                var dst = b.getMethod(src.name, src.desc)
+                if (dst != null || (b.getMethod(src.name, src.desc)
+                        .also { dst = it } != null) && !dst!!.isNameObfuscated
+                ) {
+                    match(src, dst!!)
+                }
+            }
+        }
+
+        a.memberFields.forEach { src ->
+            if(!src.isNameObfuscated) {
+                var dst = b.getField(src.name, src.desc)
+                if(dst != null || (b.getField(src.name, src.desc).also { dst = it } != null) && !dst!!.isNameObfuscated) {
+                    match(src, dst!!)
+                }
+            }
+        }
+
         Logger.info("Matched class $a -> $b")
     }
 
     fun match(a: MethodInstance, b: MethodInstance) {
-        if(!a.isMatchable || !b.isMatchable) return
         if(!a.isStatic() && !b.isStatic()) {
             if(a.cls.match != b.cls) throw IllegalArgumentException("Methods are not static and dont belong to the same class.")
         }
@@ -93,7 +138,6 @@ object Matcher {
     }
 
     fun match(a: FieldInstance, b: FieldInstance) {
-        if(!a.isMatchable || !b.isMatchable) return
         if(!a.isStatic() && !b.isStatic()) {
             if(a.cls.match != b.cls) throw IllegalArgumentException("Fields are not static and dont belong to the same class.")
         }
@@ -121,15 +165,15 @@ object Matcher {
     }
 
     fun autoMatchAll() {
-        Logger.info("Matching all entries...")
+        Logger.info("Matching...")
         if(autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }) {
             autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) { }
         }
 
         var matchedAny: Boolean
         do {
-            matchedAny = autoMatchStaticMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
-            matchedAny = matchedAny or autoMatchMemberMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
+            matchedAny = autoMatchMemberMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
+            matchedAny = matchedAny or autoMatchStaticMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
             matchedAny = matchedAny or autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) {}
         } while(matchedAny)
     }
@@ -140,12 +184,14 @@ object Matcher {
         val classes = env.groupA.classes.filter { it.isMatchable && !it.hasMatch() }
         val cmpClasses = env.groupB.classes.filter { it.isMatchable && !it.hasMatch() }
 
+        val maxScore = ClassClassifier.maxScore
+        val maxMismatch = maxScore - getRawScore(absThreshold * (1.0 - relThreshold), maxScore)
         val matches = ConcurrentHashMap<ClassInstance, ClassInstance>(classes.size)
 
         runInParallel(classes, { cls ->
-            val ranking = ClassClassifier.rank(cls, cmpClasses)
+            val ranking = ClassClassifier.rank(cls, cmpClasses, maxMismatch)
 
-            if(checkRank(ranking, absThreshold, relThreshold)) {
+            if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
                 val match = ranking[0].subject
                 matches[cls] = match
             }
@@ -172,12 +218,14 @@ object Matcher {
             val methods = cls.memberMethods.filter { !it.hasMatch() }
             val cmpMethods = cls.match!!.memberMethods.filter { !it.hasMatch() }
 
+            val maxScore = MethodClassifier.maxScore
+            val maxMismatch = maxScore - getRawScore(absThreshold * (1.0 - relThreshold), maxScore)
             val matches = ConcurrentHashMap<MethodInstance, MethodInstance>()
 
             runInParallel(methods, { method ->
-                val ranking = MethodClassifier.rank(method, cmpMethods)
+                val ranking = MethodClassifier.rank(method, cmpMethods, maxMismatch)
 
-                if(checkRank(ranking, absThreshold, relThreshold)) {
+                if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
                     val match = ranking[0].subject
                     matches[method] = match
                 }
@@ -205,11 +253,13 @@ object Matcher {
         val methods = env.groupA.staticMethods.filter { !it.hasMatch() }
         val cmpMethods = env.groupB.staticMethods.filter { !it.hasMatch() }
 
+        val maxScore = MethodClassifier.maxScore
+        val maxMismatch = maxScore - getRawScore(absThreshold * (1.0 - relThreshold), maxScore)
         val matches = ConcurrentHashMap<MethodInstance, MethodInstance>()
 
         runInParallel(methods, { method ->
-            val ranking = MethodClassifier.rank(method, cmpMethods)
-            if(checkRank(ranking, absThreshold, relThreshold)) {
+            val ranking = MethodClassifier.rank(method, cmpMethods, maxMismatch)
+            if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
                 val match = ranking[0].subject
                 matches[method] = match
             }
@@ -244,14 +294,15 @@ object Matcher {
         futures.forEach { it.get() }
     }
 
-    private fun checkRank(ranking: List<RankResult<*>>, absThreshold: Double, relThreshold: Double): Boolean {
+    private fun checkRank(ranking: List<RankResult<*>>, absThreshold: Double, relThreshold: Double, maxScore: Double): Boolean {
         if(ranking.isEmpty()) return false
-        if(ranking[0].score < absThreshold) return false
 
-        return if(ranking.size == 1) {
-            true
-        } else {
-            ranking[1].score < ranking[0].score * (1.0 - relThreshold)
+        val score = ranking[0].score
+        if(score < absThreshold) return false
+
+        return if(ranking.size == 1) true else {
+            val nextScore = ranking[1].score
+            nextScore < score * (1.0 - relThreshold)
         }
     }
 
@@ -270,6 +321,15 @@ object Matcher {
         }
     }
 
+    private fun getScore(rawScore: Double, maxScore: Double): Double {
+        val ret = rawScore / maxScore
+        return ret * ret
+    }
+
+    private fun getRawScore(score: Double, maxScore: Double): Double {
+        return sqrt(score) * maxScore
+    }
+
     const val absClassAutoMatchThreshold = 0.8
     const val relClassAutoMatchThreshold = 0.08
     const val absMethodAutoMatchThreshold = 0.8
@@ -277,5 +337,5 @@ object Matcher {
     const val absFieldAutoMatchThreshold = 0.8
     const val relFieldAutoMatchThreshold = 0.08
 
-    val threadPool = Executors.newWorkStealingPool()
+    val threadPool = Executors.newWorkStealingPool(Runtime.getRuntime().availableProcessors() - 1)
 }

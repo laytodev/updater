@@ -1,17 +1,19 @@
 package dev.updater.matcher.asm
 
+import dev.updater.matcher.classifier.RankResult
+
 abstract class MemberInstance<T : MemberInstance<T>>(
     val cls: ClassInstance,
-    val name: String,
+    override val name: String,
     val desc: String,
-    val isNameObfuscated: Boolean
+    override val isNameObfuscated: Boolean
 ) : Matchable<T> {
 
     override var isMatchable = true
     override var match: T? = null
 
-    val group get() = cls.group
-    val env get() = group.env
+    override val group get() = cls.group
+    override val rankResults = mutableListOf<RankResult<T>>()
 
     var parent: T? = null
     val children = hashSetOf<T>()

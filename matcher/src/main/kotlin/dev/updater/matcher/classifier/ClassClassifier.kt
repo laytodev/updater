@@ -33,8 +33,8 @@ object ClassClassifier : AbstractClassifier<ClassInstance>() {
         addClassifier(fieldWriteRefs, weight = 5)
     }
 
-    fun rank(src: ClassInstance, dsts: List<ClassInstance>): List<RankResult<ClassInstance>> {
-        return ClassifierUtil.rank(src, dsts, classifiers) { a, b -> ClassifierUtil.isPotentiallyEqual(a, b) }
+    fun rank(src: ClassInstance, dsts: List<ClassInstance>, maxMismatch: Double): List<RankResult<ClassInstance>> {
+        return ClassifierUtil.rank(src, dsts, classifiers, maxMismatch) { a, b -> ClassifierUtil.isPotentiallyEqual(a, b) }
     }
 
     private val classTypeCheck = classifier("class type check") { a, b ->

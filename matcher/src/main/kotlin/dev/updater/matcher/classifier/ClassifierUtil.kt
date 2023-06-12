@@ -2,19 +2,17 @@ package dev.updater.matcher.classifier
 
 import dev.updater.matcher.Matcher
 import dev.updater.matcher.asm.*
-import org.objectweb.asm.tree.AbstractInsnNode
+import org.objectweb.asm.tree.*
 import org.objectweb.asm.tree.AbstractInsnNode.*
-import org.objectweb.asm.tree.FieldInsnNode
-import org.objectweb.asm.tree.InsnList
-import org.objectweb.asm.tree.IntInsnNode
-import org.objectweb.asm.tree.JumpInsnNode
-import org.objectweb.asm.tree.LdcInsnNode
-import org.objectweb.asm.tree.MethodInsnNode
-import org.objectweb.asm.tree.MethodNode
-import org.objectweb.asm.tree.TypeInsnNode
+import org.tinylog.kotlin.Logger
+import java.util.*
+import java.util.function.Function
+import java.util.function.Predicate
+import java.util.stream.Collectors
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.streams.toList
 
 @Suppress("RedundantIf")
 object ClassifierUtil {
@@ -23,8 +21,10 @@ object ClassifierUtil {
         if(a == b) return true
         if(a.hasMatch()) return a.match == b
         if(b.hasMatch()) return b.match == a
+        if(!a.isMatchable || !b.isMatchable) return false
         if(a.isArray() != b.isArray()) return false
         if(a.isArray() && !isPotentiallyEqual(a.elementClass!!, b.elementClass!!)) return false
+        if(!checkNameObfMatch(a, b)) return false
         return true
     }
 
@@ -32,9 +32,11 @@ object ClassifierUtil {
         if(a == b) return true
         if(a.hasMatch()) return a.match == b
         if(b.hasMatch()) return b.match == a
+        if(!a.isMatchable || !b.isMatchable) return false
         if(!a.isStatic() && !b.isStatic()) {
             if(!isPotentiallyEqual(a.cls, b.cls)) return false
         }
+        if(!checkNameObfMatch(a, b)) return false
         if((a.id.startsWith("<") || b.id.startsWith("<")) && a.name != b.name) return false
         return true
     }
@@ -43,9 +45,11 @@ object ClassifierUtil {
         if(a == b) return true
         if(a.hasMatch()) return a.match == b
         if(b.hasMatch()) return b.match == a
+        if(!a.isMatchable || !b.isMatchable) return false
         if(!a.isStatic() && !b.isStatic()) {
             if(!isPotentiallyEqual(a.cls, b.cls)) return false
         }
+        if(!checkNameObfMatch(a, b)) return false
         return true
     }
 
@@ -75,6 +79,19 @@ object ClassifierUtil {
         if(a == null && b == null) return true
         if(a == null || b == null) return false
         return isPotentiallyEqual(a, b)
+    }
+
+    private fun checkNameObfMatch(a: Matchable<*>, b: Matchable<*>): Boolean {
+        val nameObfA = a.isNameObfuscated
+        val nameObfB = b.isNameObfuscated
+
+        if(nameObfA && nameObfB) {
+            return true
+        } else if(nameObfA != nameObfB) {
+            return true
+        } else {
+            return a.name == b.name
+        }
     }
 
     fun compareCounts(countA: Int, countB: Int): Double {
@@ -319,25 +336,40 @@ object ClassifierUtil {
         return isPotentiallyEqual(methodA, methodB)
     }
 
-    fun <T> rank(src: T, dsts: List<T>, classifiers: Map<Classifier<T>, Double>, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
+    fun <T> rankParallel(src: T, dsts: List<T>, classifiers: Map<Classifier<T>, Double>, maxMismatch: Double, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
+        return dsts.stream()
+            .parallel()
+            .map { dst: T -> rank<T>(src, dst, classifiers.keys.toList(), maxMismatch, checkEquality) }
+            .filter { it != null }
+            .sorted(Comparator.comparing(RankResult<T>::score).reversed())
+            .toList()
+            .filterNotNull()
+    }
+
+    fun <T> rank(src: T, dsts: List<T>, classifiers: Map<Classifier<T>, Double>, maxMismatch: Double, checkEquality: (a: T, b: T) -> Boolean): List<RankResult<T>> {
         val ret = mutableListOf<RankResult<T>>()
 
         for(dst in dsts) {
-            if(!checkEquality(src, dst)) continue
-
-            var score = 0.0
-            val results = mutableListOf<ClassifierResult<T>>()
-
-            classifiers.entries.forEach { entry ->
-                val cscore = entry.key.getScore(src, dst)
-                score += cscore * entry.value
-                results.add(ClassifierResult(entry.key, cscore))
-            }
-            ret.add(RankResult(dst, score, results))
+            val result = rank(src, dst, classifiers.keys.toList(), maxMismatch, checkEquality)
+            if(result != null) ret.add(result)
         }
+        return ret.sortedBy(RankResult<T>::score).asReversed()
+    }
 
-        ret.sortByDescending(RankResult<T>::score)
-        return ret
+    private fun <T> rank(src: T, dst: T, classifiers: List<Classifier<T>>, maxMismatch: Double, checkEquality: (a: T, b: T) -> Boolean): RankResult<T>? {
+        if(!checkEquality(src, dst)) return null
+
+        var score = 0.0
+        val results = mutableListOf<ClassifierResult<T>>()
+
+        for(classifier in classifiers) {
+            val cscore = classifier.getScore(src, dst)
+            val weight = classifier.weight
+            val weightedScore = cscore * weight
+            score += weightedScore
+            results.add(ClassifierResult(classifier, cscore))
+        }
+        return RankResult(dst, score, results)
     }
 
     fun extractStrings(insns: InsnList, out: HashSet<String>) {
