@@ -2,6 +2,8 @@ package dev.updater.matcher.classifier
 
 import dev.updater.matcher.Matcher
 import dev.updater.matcher.asm.*
+import org.objectweb.asm.Type
+import org.objectweb.asm.Type.*
 import org.objectweb.asm.tree.*
 import org.objectweb.asm.tree.AbstractInsnNode.*
 import org.tinylog.kotlin.Logger
@@ -303,6 +305,64 @@ object ClassifierUtil {
                 val dirB = Integer.signum(getPosition(listB, b.label) - getPosition(listB, b))
                 return if(dirA == dirB) COMPARED_SIMILAR else COMPARED_DISTINCT
             }
+
+            LDC_INSN -> {
+                val a = insnA as LdcInsnNode
+                val b = insnB as LdcInsnNode
+
+                val typeClsA = a.cst::class.java
+                if(typeClsA != b.cst::class.java) return COMPARED_DISTINCT
+
+                if(typeClsA == Type::class.java) {
+                    val typeA = a.cst as Type
+                    val typeB = b.cst as Type
+
+                    if(typeA.sort != typeB.sort) return COMPARED_DISTINCT
+
+                    when(typeA.sort) {
+                        ARRAY, OBJECT -> return if(isPotentiallyEqualNullable(Matcher.env.groupA.getClass(typeA.descriptor), Matcher.env.groupB.getClass(typeB.descriptor)))
+                            COMPARED_SIMILAR
+                            else COMPARED_DISTINCT
+                        METHOD -> {
+                            // TODO Need to implement support for method invoke types.
+                        }
+                    }
+                } else {
+                    return if(a.cst == b.cst) COMPARED_SIMILAR else COMPARED_DISTINCT
+                }
+            }
+
+            IINC_INSN -> {
+                val a = insnA as IincInsnNode
+                val b = insnB as IincInsnNode
+                if(a.incr != b. incr) return COMPARED_DISTINCT
+            }
+
+            TABLESWITCH_INSN -> {
+                val a = insnA as TableSwitchInsnNode
+                val b = insnB as TableSwitchInsnNode
+                return if(a.min == b.min && a.max == b.max) COMPARED_SIMILAR else COMPARED_DISTINCT
+            }
+
+            LOOKUPSWITCH_INSN -> {
+                val a = insnA as LookupSwitchInsnNode
+                val b = insnB as LookupSwitchInsnNode
+                return if(a.keys == b.keys) COMPARED_SIMILAR else COMPARED_DISTINCT
+            }
+
+            MULTIANEWARRAY_INSN -> {
+                val a = insnA as MultiANewArrayInsnNode
+                val b = insnB as MultiANewArrayInsnNode
+
+                if(a.dims != b.dims) return COMPARED_DISTINCT
+
+                val clsA = Matcher.env.groupA.getClass(a.desc)
+                val clsB = Matcher.env.groupB.getClass(b.desc)
+
+                return if(isPotentiallyEqualNullable(clsA, clsB)) COMPARED_SIMILAR else COMPARED_DISTINCT
+            }
+
+
         }
         return COMPARED_SIMILAR
     }
@@ -322,8 +382,6 @@ object ClassifierUtil {
         if(clsA == null || clsB == null) return false
 
         return compareMethods(clsA, nameA, descA, clsB, nameB, descB)
-
-        val v = ClassLoader.getSystemClassLoader()
     }
 
     private fun compareMethods(clsA: ClassInstance, nameA: String, descA: String, clsB: ClassInstance, nameB: String, descB: String): Boolean {

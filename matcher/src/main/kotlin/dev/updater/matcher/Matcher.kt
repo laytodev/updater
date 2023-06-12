@@ -2,6 +2,7 @@ package dev.updater.matcher
 
 import dev.updater.matcher.asm.*
 import dev.updater.matcher.classifier.ClassClassifier
+import dev.updater.matcher.classifier.MethodClassifier
 import dev.updater.matcher.classifier.RankResult
 import dev.updater.matcher.gui.MatcherApp
 import org.tinylog.kotlin.Logger

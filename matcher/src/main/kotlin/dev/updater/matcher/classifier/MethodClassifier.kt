@@ -1,8 +1,6 @@
-package dev.updater.matcher.asm
+package dev.updater.matcher.classifier
 
-import dev.updater.matcher.classifier.AbstractClassifier
-import dev.updater.matcher.classifier.ClassifierUtil
-import dev.updater.matcher.classifier.RankResult
+import dev.updater.matcher.asm.MethodInstance
 import org.objectweb.asm.Opcodes.*
 
 object MethodClassifier : AbstractClassifier<MethodInstance>() {
