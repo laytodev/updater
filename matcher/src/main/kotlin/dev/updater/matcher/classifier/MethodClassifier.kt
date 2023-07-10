@@ -23,7 +23,7 @@ object MethodClassifier : AbstractClassifier<MethodInstance>() {
     }
 
     fun rank(src: MethodInstance, dsts: List<MethodInstance>, maxMismatch: Double): List<RankResult<MethodInstance>> {
-        return ClassifierUtil.rank(src, dsts, classifiers, maxMismatch, ClassifierUtil::isPotentiallyEqual)
+        return ClassifierUtil.rank(src, dsts, classifiers, Double.POSITIVE_INFINITY, ClassifierUtil::isPotentiallyEqual)
     }
 
     private val methodTypeCheck = classifier("method type check") { a, b ->

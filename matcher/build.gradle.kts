@@ -9,7 +9,7 @@ application {
     mainClass.set("dev.updater.matcher.Matcher")
 }
 
-tasks.named<JavaExec>("run") {
+tasks.withType<JavaExec>() {
     workingDir = rootProject.projectDir
 }
 
@@ -26,4 +26,11 @@ dependencies {
     implementation("no.tornado:tornadofx:_")
     implementation("org.tinylog:tinylog-api-kotlin:_")
     implementation("org.tinylog:tinylog-impl:_")
+    implementation("org.quiltmc:quiltflower:_")
+    implementation("org.bitbucket.mstrobel:procyon-compilertools:_")
+    runtimeOnly("org.openjfx:javafx-base:11.0.2:win")
+    runtimeOnly("org.openjfx:javafx-graphics:11.0.2:win")
+    runtimeOnly("org.openjfx:javafx-controls:11.0.2:win")
+    runtimeOnly("org.openjfx:javafx-web:11.0.2:win")
+    runtimeOnly("org.openjfx:javafx-media:11.0.2:win")
 }

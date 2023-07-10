@@ -34,7 +34,7 @@ object ClassClassifier : AbstractClassifier<ClassInstance>() {
     }
 
     fun rank(src: ClassInstance, dsts: List<ClassInstance>, maxMismatch: Double): List<RankResult<ClassInstance>> {
-        return ClassifierUtil.rank(src, dsts, classifiers, maxMismatch) { a, b -> ClassifierUtil.isPotentiallyEqual(a, b) }
+        return ClassifierUtil.rank(src, dsts, classifiers, Double.POSITIVE_INFINITY, ClassifierUtil::isPotentiallyEqual)
     }
 
     private val classTypeCheck = classifier("class type check") { a, b ->

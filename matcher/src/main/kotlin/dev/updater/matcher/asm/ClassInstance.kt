@@ -1,6 +1,7 @@
 package dev.updater.matcher.asm
 
 import dev.updater.matcher.classifier.RankResult
+import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes.ACC_INTERFACE
 import org.objectweb.asm.tree.ClassNode
 import java.util.ArrayDeque
@@ -139,6 +140,12 @@ class ClassInstance private constructor(
         }
 
         return null
+    }
+
+    fun serialize(rename: Boolean = false): ByteArray {
+        val writer = ClassWriter(0)
+        asmNode!!.accept(writer)
+        return writer.toByteArray()
     }
 
     override fun toString(): String {

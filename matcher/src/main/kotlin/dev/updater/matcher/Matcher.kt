@@ -2,6 +2,7 @@ package dev.updater.matcher
 
 import dev.updater.matcher.asm.*
 import dev.updater.matcher.classifier.ClassClassifier
+import dev.updater.matcher.classifier.FieldClassifier
 import dev.updater.matcher.classifier.MethodClassifier
 import dev.updater.matcher.classifier.RankResult
 import dev.updater.matcher.gui.MatcherApp
@@ -23,7 +24,7 @@ object Matcher {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        if(args.size < 2) error("Usage: <named jar> <deob jar>")
+         if(args.size < 2) error("Usage: <named jar> <deob jar>")
 
         val jarA = File(args[0])
         val jarB = File(args[1])
@@ -40,11 +41,11 @@ object Matcher {
         env = ClassEnvironment(jarA, jarB)
         env.init()
 
-        //upddateUnmatchables()
         matchUnobfuscated()
 
         ClassClassifier.init()
         MethodClassifier.init()
+        FieldClassifier.init()
     }
 
     fun launchGui() {
@@ -174,7 +175,7 @@ object Matcher {
         var matchedAny: Boolean
         do {
             matchedAny = autoMatchMemberMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
-            matchedAny = matchedAny or autoMatchStaticMethods(absMethodAutoMatchThreshold, relMethodAutoMatchThreshold) {}
+            matchedAny = matchedAny or autoMatchMemberFields(absFieldAutoMatchThreshold, relFieldAutoMatchThreshold) {}
             matchedAny = matchedAny or autoMatchClasses(absClassAutoMatchThreshold, relClassAutoMatchThreshold) {}
         } while(matchedAny)
     }
@@ -192,7 +193,7 @@ object Matcher {
         runInParallel(classes, { cls ->
             val ranking = ClassClassifier.rank(cls, cmpClasses, maxMismatch)
 
-            if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
+            if(checkRank(ranking, absThreshold, relThreshold)) {
                 val match = ranking[0].subject
                 matches[cls] = match
             }
@@ -226,7 +227,7 @@ object Matcher {
             runInParallel(methods, { method ->
                 val ranking = MethodClassifier.rank(method, cmpMethods, maxMismatch)
 
-                if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
+                if(checkRank(ranking, absThreshold, relThreshold)) {
                     val match = ranking[0].subject
                     matches[method] = match
                 }
@@ -260,7 +261,7 @@ object Matcher {
 
         runInParallel(methods, { method ->
             val ranking = MethodClassifier.rank(method, cmpMethods, maxMismatch)
-            if(checkRank(ranking, absThreshold, relThreshold, maxScore)) {
+            if(checkRank(ranking, absThreshold, relThreshold)) {
                 val match = ranking[0].subject
                 matches[method] = match
             }
@@ -275,6 +276,45 @@ object Matcher {
         Logger.info("Auto-Matched ${matches.size} static methods. (${methods.size - matches.size} unmatched, ${methods.size} total)")
 
         return matches.isNotEmpty()
+    }
+
+    fun autoMatchMemberFields(normThreshold: Double, relThreshold: Double, progressCallback: (Double) -> Unit): Boolean {
+        val absThreshold = normThreshold * MethodClassifier.maxScore
+
+        val totalFields = AtomicInteger()
+        val totalMatched = AtomicInteger()
+        val totalUnmatched = AtomicInteger()
+        env.groupA.classes.filter { it.hasMatch() }.forEach { cls ->
+            val fields = cls.memberFields.filter { !it.hasMatch() }
+            val cmpFields = cls.match!!.memberFields.filter { !it.hasMatch() }
+
+            val maxScore = FieldClassifier.maxScore
+            val maxMismatch = maxScore - getRawScore(absThreshold * (1.0 - relThreshold), maxScore)
+            val matches = ConcurrentHashMap<FieldInstance, FieldInstance>()
+
+            runInParallel(fields, { field ->
+                val ranking = FieldClassifier.rank(field, cmpFields, maxMismatch)
+
+                if(checkRank(ranking, absThreshold, relThreshold)) {
+                    val match = ranking[0].subject
+                    matches[field] = match
+                }
+            }, progressCallback)
+
+            sanitizeMatches(matches)
+
+            matches.entries.forEach { entry ->
+                match(entry.key, entry.value)
+            }
+
+            totalFields.getAndAdd(fields.size)
+            totalMatched.getAndAdd(matches.size)
+            totalUnmatched.getAndAdd(fields.size - matches.size)
+        }
+
+        Logger.info("Auto-Matched ${totalMatched.get()} member fields. (${totalUnmatched.get()} unmatched, ${totalFields.get()} total)")
+
+        return totalMatched.get() > 0
     }
 
     private fun <T> runInParallel(workSet: List<T>, worker: (T) -> Unit, progressCallback: (Double) -> Unit) {
@@ -295,7 +335,7 @@ object Matcher {
         futures.forEach { it.get() }
     }
 
-    private fun checkRank(ranking: List<RankResult<*>>, absThreshold: Double, relThreshold: Double, maxScore: Double): Boolean {
+    private fun checkRank(ranking: List<RankResult<*>>, absThreshold: Double, relThreshold: Double): Boolean {
         if(ranking.isEmpty()) return false
 
         val score = ranking[0].score
@@ -320,11 +360,6 @@ object Matcher {
         if(!conflictingMatches.isEmpty()) {
             matches.values.removeAll(conflictingMatches)
         }
-    }
-
-    private fun getScore(rawScore: Double, maxScore: Double): Double {
-        val ret = rawScore / maxScore
-        return ret * ret
     }
 
     private fun getRawScore(score: Double, maxScore: Double): Double {
